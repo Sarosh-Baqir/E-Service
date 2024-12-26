@@ -386,12 +386,12 @@ const profilePicture = async (req, res) => {
   }
 }
 
-// Enpoint to complete profile
 const completeProfile = async (req, res) => {
   try {
     const { bio, cnic, address } = req.body
 
-    const data = await database
+    // Update the user profile fields
+    await database
       .update(user)
       .set({
         bio,
@@ -399,9 +399,55 @@ const completeProfile = async (req, res) => {
         address,
       })
       .where(eq(user.id, req.loggedInUserId))
-      .returning({ id: user.id, bio: user.bio, cnic: user.cnic, address: user.address })
-    console.log(data)
-    return successResponse(res, "Profile is Updated!", data)
+
+    // Fetch updated user data along with the role information
+    const [userData] = await database
+      .select({
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        gender: user.gender,
+        profile_picture: user.profile_picture,
+        cnic: user.cnic,
+        is_verified: user.is_verified,
+        is_admin: user.is_admin,
+        address: user.address,
+        bio: user.bio,
+        is_complete: user.is_complete,
+        role_id: role.id,
+        role_title: role.title,
+        role_permissions: role.permissions, // Add permissions if they are part of the role model
+      })
+      .from(user)
+      .leftJoin(role, eq(role.id, user.role_id)) // Join the role table
+      .where(eq(user.id, req.loggedInUserId)) // Match the logged-in user ID
+
+    // Format the response to merge role fields with user fields
+    const formattedResponse = {
+      id: userData.id,
+      email: userData.email,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
+      phone: userData.phone,
+      gender: userData.gender,
+      profile_picture: userData.profile_picture,
+      cnic: userData.cnic,
+      is_verified: userData.is_verified,
+      is_admin: userData.is_admin,
+      address: userData.address,
+      bio: userData.bio,
+      is_complete: userData.is_complete,
+      role: {
+        id: userData.role_id,
+        title: userData.role_title,
+        permissions: userData.role_permissions,
+      },
+    }
+
+    // Return the flattened data
+    return successResponse(res, "Profile is Updated!", formattedResponse)
   } catch (error) {
     return errorResponse(res, error.message, 500)
   }
